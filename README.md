@@ -1,4 +1,4 @@
-# claude-health
+# health
 
 A Claude Code skill that audits your Claude Code configuration health across all layers.
 
@@ -14,7 +14,7 @@ Systematically reviews your project's Claude Code setup using the six-layer fram
 ## Install
 
 ```bash
-npx skills add tw93/claude-health
+npx skills add hiclaude/health
 ```
 
 ## Usage
