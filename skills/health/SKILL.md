@@ -1,7 +1,7 @@
 ---
 name: health
 description: Audit Claude Code configuration health across all layers (CLAUDE.md, rules, skills, hooks, MCP). Run periodically or when collaboration feels off.
-version: "1.1.0"
+version: "1.2.0"
 ---
 
 # Claude Code Configuration Health Audit
@@ -35,40 +35,15 @@ Use this rubric to pick the audit tier before proceeding:
 ## Step 0.5: Check for skill updates (weekly)
 
 ```bash
-# Check if it's time to check for updates (cache for 7 days)
-CACHE_FILE="$HOME/.cache/claude-health-last-check"
-CURRENT_VERSION="1.1.0"
-
-should_check() {
-    if [[ ! -f "$CACHE_FILE" ]]; then
-        return 0
-    fi
-    local last_check=$(cat "$CACHE_FILE" 2>/dev/null || echo 0)
-    local now=$(date +%s)
-    local week=$((7 * 24 * 3600))
-    if (( now - last_check > week )); then
-        return 0
-    fi
-    return 1
-}
-
-if should_check; then
-    # Check latest version from GitHub
-    LATEST=$(curl -s "https://api.github.com/repos/tw93/claude-health/commits/main" 2>/dev/null | grep -o '"sha": "[^"]*"' | head -1 | cut -d'"' -f4 | cut -c1-7)
-    if [[ -n "$LATEST" ]]; then
-        # Get cached version
-        CACHED_VERSION=$(cat "$CACHE_FILE.version" 2>/dev/null || echo "unknown")
-        if [[ "$LATEST" != "$CACHED_VERSION" && "$CACHED_VERSION" != "unknown" ]]; then
-            echo "[UPDATE] claude-health 有更新可用"
-            echo "   当前: $CURRENT_VERSION"
-            echo "   最新: $LATEST"
-            echo "   更新: npx skills add tw93/claude-health@latest"
-            echo ""
-        fi
-        # Update cache
-        date +%s > "$CACHE_FILE"
-        echo "$LATEST" > "$CACHE_FILE.version"
-    fi
+CACHE="$HOME/.cache/claude-health-last-check"
+VER="1.2.0"
+NOW=$(date +%s)
+LAST=$(cat "$CACHE" 2>/dev/null || echo 0)
+if (( NOW - LAST > 604800 )); then
+    SHA=$(curl -sf "https://api.github.com/repos/hiclaude/health/commits/main" | grep -o '"sha": "[^"]*"' | head -1 | cut -d'"' -f4 | cut -c1-7)
+    PREV=$(cat "$CACHE.v" 2>/dev/null || echo "")
+    [[ -n "$SHA" && -n "$PREV" && "$SHA" != "$PREV" ]] && echo "[UPDATE] claude-health 有更新: npx skills add hiclaude/health@latest"
+    echo "$NOW" > "$CACHE"; [[ -n "$SHA" ]] && echo "$SHA" > "$CACHE.v"
 fi
 ```
 
@@ -87,20 +62,13 @@ echo "=== MCP ===" ; python3 -c "
 import json
 try:
     d=json.load(open('$SETTINGS'))
-    servers = d.get('mcpServers', d.get('enabledMcpjsonServers', {}))
-    if isinstance(servers, dict):
-        print('server_count:', len(servers))
-        for name in servers:
-            print(f'  - {name}')
-        # Estimate token cost: ~200 tokens per tool, typical server has 20-30 tools
-        est_tools = len(servers) * 25
-        est_tokens = est_tools * 200
-        print(f'estimated_mcp_tools: ~{est_tools}')
-        print(f'estimated_mcp_tokens: ~{est_tokens} ({round(est_tokens/2000)}% of 200K context)')
-    else:
-        print('server_count:', len(servers))
-except Exception as e:
-    print('(no MCP config)')
+    s = d.get('mcpServers', d.get('enabledMcpjsonServers', {}))
+    names = list(s.keys()) if isinstance(s, dict) else list(s)
+    n = len(names)
+    print(f'servers({n}):', ', '.join(names))
+    est = n * 25 * 200  # ~200 tokens/tool, ~25 tools/server
+    print(f'est_tokens: ~{est} ({round(est/2000)}% of 200K)')
+except: print('(no MCP)')
 " 2>/dev/null
 echo "=== allowedTools count ===" ; python3 -c "import json; d=json.load(open('$SETTINGS')); print(len(d.get('permissions',{}).get('allow',[])))" 2>/dev/null
 echo "=== HANDOFF.md ===" ; cat "$P/HANDOFF.md" 2>/dev/null || echo "(none)"
@@ -206,10 +174,11 @@ Tier-adjusted hooks checks:
 - SIMPLE: Hooks are optional. Only flag if a hook is broken (e.g., fires on wrong file types).
 - STANDARD+: PostToolUse hooks expected for the primary language(s) of the project.
 - COMPLEX: Hooks expected for all frequently-edited file types found in conversations.
-- ALL tiers: If hooks exist:
-  - Verify pattern field is present to avoid firing on all edits
-  - Verify command contains {file_path} placeholder (not hardcoded paths)
-  - Flag hooks using $CLAUDE_TOOL_INPUT_FILE_PATH (env var may not exist; suggest explicit file path passing)
+- ALL tiers: If hooks exist, verify correct schema:
+  - Each entry needs `matcher` (tool name regex like "Edit|Write") and `hooks` array
+  - Each hook in the array needs `type: "command"` and `command` field
+  - File path available via `$CLAUDE_TOOL_INPUT_FILE_PATH` env var in commands
+  - Flag hooks missing `matcher` (would fire on ALL tool calls)
 
 allowedTools hygiene (ALL tiers):
 - Flag stale one-time commands (migrations, setup scripts, path-specific operations).
@@ -261,22 +230,17 @@ Analyze actual behavior against stated rules:
 2. Repeated corrections: Find cases where the user corrected Claude's behavior more than once on the same issue. These are candidates for stronger rules.
 3. Missing local patterns: Find project-specific behaviors the user reinforced in conversation but that aren't in local CLAUDE.md.
 4. Missing global patterns: Find behaviors that would apply to any project (not just this one) that aren't in ~/.claude/CLAUDE.md.
-5. Anti-patterns present: Check for these specific anti-patterns:
-   - CLAUDE.md used as wiki/documentation
+5. Anti-patterns and context hygiene: Check for:
+   - CLAUDE.md used as wiki/documentation instead of executable rules
    - Skills covering too many unrelated tasks
    - Claude declaring done without running verification
    - Subagents used without tool/permission constraints
-   - User having to re-explain the same context across sessions
-6. Context management discipline: Check conversation evidence for:
-   - Long sessions (>20 user turns) without any /compact or /clear usage — flag as context decay risk
-   - Task switches within a session without /clear — flag as context pollution
-   - Multiple topics mixed in a single session without /compact between phases
-   - If none of /context, /compact, /clear appear in any conversation, suggest adopting context hygiene habits
-7. Session continuity patterns (STANDARD+): Check conversation evidence for:
-   - Repeated context re-explanation across sessions — suggests missing HANDOFF.md or memory
-   - Same architectural decisions being re-discussed — should be in CLAUDE.md or memory
+   - User re-explaining same context across sessions (missing HANDOFF.md or memory)
+   - Long sessions (>20 turns) without /compact or /clear
+   - Task switches within session without /clear (context pollution)
+   - Same architectural decisions re-discussed (should be in CLAUDE.md or memory)
 
-Output: bullet points only, grouped by: [rules violated] [repeated corrections] [add to local CLAUDE.md] [add to global CLAUDE.md] [anti-patterns] [context hygiene]
+Output: bullet points only, grouped by: [rules violated] [repeated corrections] [add to local CLAUDE.md] [add to global CLAUDE.md] [anti-patterns]
 ```
 
 Paste the extracted conversation content inline into agent B and C prompts. Do not pass file paths.
