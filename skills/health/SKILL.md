@@ -1,6 +1,7 @@
 ---
 name: health
 description: Audit Claude Code configuration health across all layers (CLAUDE.md, rules, skills, hooks, MCP). Run periodically or when collaboration feels off.
+version: "1.0.0"
 ---
 
 # Claude Code Configuration Health Audit
@@ -30,6 +31,46 @@ Use this rubric to pick the audit tier before proceeding:
 | **Complex** | >5K files, multi-contributor, multi-language, active CI | Full six-layer setup required |
 
 **Apply the tier's standard throughout the audit. Do not flag missing layers that aren't required for the detected tier.**
+
+## Step 0.5: Check for skill updates (weekly)
+
+```bash
+# Check if it's time to check for updates (cache for 7 days)
+CACHE_FILE="$HOME/.cache/claude-health-last-check"
+CURRENT_VERSION="1.0.0"
+
+should_check() {
+    if [[ ! -f "$CACHE_FILE" ]]; then
+        return 0
+    fi
+    local last_check=$(cat "$CACHE_FILE" 2>/dev/null || echo 0)
+    local now=$(date +%s)
+    local week=$((7 * 24 * 3600))
+    if (( now - last_check > week )); then
+        return 0
+    fi
+    return 1
+}
+
+if should_check; then
+    # Check latest version from GitHub
+    LATEST=$(curl -s "https://api.github.com/repos/tw93/claude-health/commits/main" 2>/dev/null | grep -o '"sha": "[^"]*"' | head -1 | cut -d'"' -f4 | cut -c1-7)
+    if [[ -n "$LATEST" ]]; then
+        # Get cached version
+        CACHED_VERSION=$(cat "$CACHE_FILE.version" 2>/dev/null || echo "unknown")
+        if [[ "$LATEST" != "$CACHED_VERSION" && "$CACHED_VERSION" != "unknown" ]]; then
+            echo "[UPDATE] claude-health 有更新可用"
+            echo "   当前: $CURRENT_VERSION"
+            echo "   最新: $LATEST"
+            echo "   更新: npx skills add tw93/claude-health@latest"
+            echo ""
+        fi
+        # Update cache
+        date +%s > "$CACHE_FILE"
+        echo "$LATEST" > "$CACHE_FILE.version"
+    fi
+fi
+```
 
 ## Step 1: Collect configuration snapshot
 
@@ -101,8 +142,17 @@ Tier-adjusted rules/ checks:
 
 Tier-adjusted skill checks:
 - SIMPLE: 0–1 skills is fine. Do not flag absence of skills.
-- ALL tiers: If skills exist, descriptions should be <12 tokens and say WHEN to use.
-- STANDARD+: Low-frequency skills should have disable-auto-invoke: true.
+- ALL tiers: If skills exist, descriptions should be <12 words (space-separated) and say WHEN to use.
+- STANDARD+: Low-frequency skills should have disable-model-invocation: true.
+
+Tier-adjusted MEMORY.md checks (STANDARD+):
+- Check if project has `.claude/projects/.../memory/MEMORY.md`
+- Verify CLAUDE.md references MEMORY.md for architecture decisions
+- Ensure scrollbar, rendering, or other key design decisions are documented there
+
+Tier-adjusted AGENTS.md checks (COMPLEX with multiple modules):
+- Verify CLAUDE.md includes "AGENTS.md 使用指南" section
+- Check that it explains WHEN to consult each AGENTS.md (not just list links)
 
 Output: bullet points only, state the detected tier at the top, grouped by: [CLAUDE.md issues] [rules/ issues] [skills description issues]
 ```
@@ -124,6 +174,7 @@ Tier-adjusted hooks checks:
 - ALL tiers: If hooks exist:
   - Verify pattern field is present to avoid firing on all edits
   - Verify command contains {file_path} placeholder (not hardcoded paths)
+  - Flag hooks using $CLAUDE_TOOL_INPUT_FILE_PATH (env var may not exist; suggest explicit file path passing)
 
 allowedTools hygiene (ALL tiers):
 - Flag stale one-time commands (migrations, setup scripts, path-specific operations).
