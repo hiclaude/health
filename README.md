@@ -50,7 +50,7 @@ Results are grouped into three priority levels:
 
 ## Background
 
-Built on the six-layer framework described in [this blog post](https://tw93.fun/2026-03-12/claude.html). If you've read the post and want to know how your config measures up, `/health` is the fastest way to find out.
+Built on the six-layer framework. Run `/health` to quickly audit how your configuration measures up.
 
 ## License
 
