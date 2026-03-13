@@ -14,7 +14,7 @@ The goal is not just to find rule violations, but to diagnose which layer is mis
 
 ```bash
 P=$(pwd)
-echo "source_files: $(find "$P" -type f \( -name "*.rs" -o -name "*.ts" -o -name "*.py" -o -name "*.go" -o -name "*.lua" \) -not -path "*/.git/*" -not -path "*/node_modules/*" | wc -l)"
+echo "source_files: $(find "$P" -type f \( -name "*.rs" -o -name "*.ts" -o -name "*.py" -o -name "*.go" -o -name "*.lua" -o -name "*.swift" \) -not -path "*/.git/*" -not -path "*/node_modules/*" | wc -l)"
 echo "contributors: $(git -C "$P" log --format='%ae' 2>/dev/null | sort -u | wc -l)"
 echo "ci_workflows:  $(ls "$P/.github/workflows/"*.yml 2>/dev/null | wc -l)"
 echo "skills:        $(ls "$P/.claude/skills/" 2>/dev/null | wc -l)"
@@ -42,7 +42,7 @@ echo "=== CLAUDE.md (local) ===" ; cat "$P/CLAUDE.md" 2>/dev/null || echo "(none
 echo "=== rules/ ===" ; find "$P/.claude/rules" -name "*.md" 2>/dev/null | while IFS= read -r f; do echo "--- $f ---"; cat "$f"; done
 echo "=== skill descriptions ===" ; grep -r "^description:" "$P/.claude/skills" ~/.claude/skills 2>/dev/null
 echo "=== hooks ===" ; python3 -c "import json,sys; d=json.load(open('$SETTINGS')); print(json.dumps(d.get('hooks',{}), indent=2))" 2>/dev/null
-echo "=== MCP ===" ; python3 -c "import json; d=json.load(open('$SETTINGS')); print(d.get('enabledMcpjsonServers',[]))" 2>/dev/null
+echo "=== MCP ===" ; python3 -c "import json; d=json.load(open('$SETTINGS')); print('servers:', d.get('enabledMcpjsonServers',[])); print('count:', len(d.get('enabledMcpjsonServers',[])))" 2>/dev/null
 echo "=== allowedTools count ===" ; python3 -c "import json; d=json.load(open('$SETTINGS')); print(len(d.get('permissions',{}).get('allow',[])))" 2>/dev/null
 ```
 
@@ -102,7 +102,7 @@ Tier-adjusted rules/ checks:
 Tier-adjusted skill checks:
 - SIMPLE: 0–1 skills is fine. Do not flag absence of skills.
 - ALL tiers: If skills exist, descriptions should be <12 tokens and say WHEN to use.
-- STANDARD+: Low-frequency skills should have disable-model-invocation: true.
+- STANDARD+: Low-frequency skills should have disable-auto-invoke: true.
 
 Output: bullet points only, state the detected tier at the top, grouped by: [CLAUDE.md issues] [rules/ issues] [skills description issues]
 ```
@@ -121,11 +121,20 @@ Tier-adjusted hooks checks:
 - SIMPLE: Hooks are optional. Only flag if a hook is broken (e.g., fires on wrong file types).
 - STANDARD+: PostToolUse hooks expected for the primary language(s) of the project.
 - COMPLEX: Hooks expected for all frequently-edited file types found in conversations.
-- ALL tiers: If hooks exist, verify pattern field is present to avoid firing on all edits.
+- ALL tiers: If hooks exist:
+  - Verify pattern field is present to avoid firing on all edits
+  - Verify command contains {file_path} placeholder (not hardcoded paths)
 
 allowedTools hygiene (ALL tiers):
 - Flag stale one-time commands (migrations, setup scripts, path-specific operations).
-- Flag dangerous operations (rm -rf, force-push, brew uninstall, launchctl unload).
+- Flag dangerous operations:
+  - HIGH: sudo *, rm -rf /, *>*
+  - MEDIUM: brew uninstall, launchctl unload, xcode-select --reset
+  - LOW (cleanup needed): path-hardcoded commands, debug/test commands
+
+MCP configuration (STANDARD+):
+- Check enabledMcpjsonServers count (>6 may impact performance)
+- Check filesystem MCP has allowedDirectories configured
 
 Tier-adjusted verification checks:
 - SIMPLE: No formal verification section required. Only flag if Claude declared done without running any check.
