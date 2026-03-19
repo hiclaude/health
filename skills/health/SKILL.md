@@ -14,7 +14,7 @@ The goal is to find violations and identify the misaligned layer, calibrated to 
 
 **Output language:** Use the user's recent messages; fall back to the CLAUDE.md `## Communication` rule. Default to English.
 
-**IMPORTANT:** Before the first tool call, output one short status line in the output language that says the audit is starting.
+**IMPORTANT:** Before the first tool call, output one short Step 1/3 progress line in the output language.
 
 ## Step 0: Assess project tier
 
@@ -207,6 +207,8 @@ done
 
 ## Step 2: Analyze with tier-adjusted depth
 
+After Step 1 completes, output one short Step 2/3 progress line in the output language.
+
 SIMPLE: do not launch subagents. Analyze locally from Step 1, prioritize core config checks, and skip conversation-heavy cross-validation unless the evidence is already obvious.
 
 STANDARD/COMPLEX: launch **two subagents** in parallel. Paste the needed Step 1 sections inline. Fill in `[project]`, tier, and `(no conversation history)` when needed.
@@ -248,7 +250,7 @@ MEMORY.md checks, STANDARD+:
 - Weight urgency by conversation count, 10+ means [!] Critical if MEMORY.md is absent
 
 AGENTS.md checks, COMPLEX multi-module only:
-- Verify CLAUDE.md includes "AGENTS.md 使用指南"
+- Verify CLAUDE.md includes an "AGENTS.md usage guide" section
 - Ensure it explains when to consult each AGENTS.md, not just links
 
 MCP token cost, ALL tiers:
@@ -299,7 +301,7 @@ CRITICAL: distinguish discussion of a security pattern from actual use. Only fla
 
 Output: bullet points only, two sections:
 [CONTEXT LAYER: CLAUDE.md issues | rules/ issues | skill description issues | MCP cost | verifiers gaps]
-[SKILL SECURITY: [!] Critical | [~] Structural | [+] Provenance]
+[SKILL SECURITY: ☻ Critical | ◎ Structural | ○ Provenance]
 ```
 
 ### Agent 2 -- Control + Behavior Audit (uses conversation evidence)
@@ -388,18 +390,39 @@ Paste all data inline. Do not pass file paths.
 
 ## Step 3: Synthesize and present
 
+Before writing the report, output one short Step 3/3 progress line in the output language.
+
 Aggregate the local analysis and any agent outputs into one report:
 
-### [!] Critical -- fix now
-Rules violated, missing verification definitions, dangerous allowedTools, MCP overhead >12.5%, required-path `Access denied`, active cache-breakers, and Agent 1 security findings.
+---
 
-### [~] Structural -- fix soon
+**Health Report: {project} ({tier} tier, {file_count} files)**
+
+### ✓ Passing
+
+Render a compact table of checks that passed. Include only checks relevant to the detected tier. Limit to 5 rows. Omit rows for checks that have findings.
+
+| Check | Detail |
+|-------|--------|
+| settings.local.json gitignored | ok |
+| No nested CLAUDE.md | ok |
+| Skill security scan | no flags |
+
+### ☻ Critical -- fix now
+
+Rules violated, missing verification definitions, dangerous allowedTools, MCP overhead >12.5%, required-path `Access denied`, active cache-breakers, and security findings.
+
+### ◎ Structural -- fix soon
+
 CLAUDE.md content that belongs elsewhere, missing hooks, oversized skill descriptions, single-layer critical rules, model switching, verifier gaps, subagent permission gaps, and skill structural issues.
 
-### [+] Incremental -- nice to have
+### ○ Incremental -- nice to have
+
 New patterns to add, outdated items to remove, global vs local placement, context hygiene, HANDOFF.md adoption, skill invoke tuning, and provenance issues.
 
 ---
+
+If all three issue sections are empty, output one short line in the output language like: `✓ All relevant checks passed. Nothing to fix.`
 
 ## Non-goals
 - Never auto-apply fixes without confirmation.
@@ -407,7 +430,7 @@ New patterns to add, outdated items to remove, global vs local placement, contex
 - Flag issues, do not replace architectural judgment.
 
 
-**Stop condition:** After the report, ask:
+**Stop condition:** After the report, ask in the output language:
 > "Should I draft the changes? I can handle each layer separately: global CLAUDE.md / local CLAUDE.md / hooks / skills."
 
 Do not make any edits without explicit confirmation.
