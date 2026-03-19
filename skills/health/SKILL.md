@@ -18,27 +18,27 @@ The goal is to find violations and identify the misaligned layer, calibrated to 
 
 ## Step 0: Assess project tier
 
-Pick the audit tier first:
+Pick tier:
 
 | Tier | Signal | What's expected |
 |------|--------|-----------------|
-| **Simple** | <500 source files, 1 contributor, no CI | CLAUDE.md only; 0–1 skills; no rules/; hooks optional |
-| **Standard** | 500–5K files, small team or CI present | CLAUDE.md + 1–2 rules files; 2–4 skills; basic hooks |
-| **Complex** | >5K files, multi-contributor, multi-language, active CI | Full six-layer setup required |
+| **Simple** | <500 project files, 1 contributor, no CI | CLAUDE.md only; 0–1 skills; no rules/; hooks optional |
+| **Standard** | 500–5K project files, small team or CI present | CLAUDE.md + 1–2 rules files; 2–4 skills; basic hooks |
+| **Complex** | >5K project files, multi-contributor, multi-language, active CI | Full six-layer setup required |
 
 **Apply only the detected tier's requirements.**
 
 
 ## Step 1: Collect all data (single bash block)
 
-Run one block to collect all data.
+Run one block to collect data.
 
 ```bash
 P=$(pwd)
 SETTINGS="$P/.claude/settings.local.json"
 
 echo "=== TIER METRICS ==="
-echo "source_files: $(find "$P" -type f \( -name "*.rs" -o -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.py" -o -name "*.go" -o -name "*.lua" -o -name "*.swift" -o -name "*.rb" -o -name "*.java" -o -name "*.kt" -o -name "*.cs" -o -name "*.cpp" -o -name "*.c" \) -not -path "*/.git/*" -not -path "*/node_modules/*" | wc -l)"
+echo "project_files: $(find "$P" -type f -not -path "*/.git/*" -not -path "*/node_modules/*" -not -path "*/dist/*" -not -path "*/build/*" | wc -l)"
 echo "contributors: $(git -C "$P" log --format='%ae' 2>/dev/null | sort -u | wc -l)"
 echo "ci_workflows:  $(ls "$P/.github/workflows/"*.yml "$P/.github/workflows/"*.yaml 2>/dev/null | wc -l)"
 echo "skills:        $(find "$P/.claude/skills" -name "SKILL.md" 2>/dev/null | grep -v '/health/SKILL.md' | wc -l)"
@@ -205,9 +205,11 @@ echo "=== SKILL FULL CONTENT (sample: up to 5 skills, 80 lines each) ==="
 done
 ```
 
-## Step 2: Launch two parallel diagnostic agents
+## Step 2: Analyze with tier-adjusted depth
 
-Launch **two subagents** in parallel. Paste the needed Step 1 sections inline. Fill in `[project]`, tier, and `(no conversation history)` when needed.
+SIMPLE: do not launch subagents. Analyze locally from Step 1, prioritize core config checks, and skip conversation-heavy cross-validation unless the evidence is already obvious.
+
+STANDARD/COMPLEX: launch **two subagents** in parallel. Paste the needed Step 1 sections inline. Fill in `[project]`, tier, and `(no conversation history)` when needed.
 
 ### Agent 1 -- Context + Security Audit (no conversation needed)
 Prompt:
@@ -329,7 +331,8 @@ allowedTools hygiene, ALL tiers:
 - Do NOT flag: path-hardcoded commands, debug/test commands, brew/launchctl/maintenance commands -- these are normal personal workflow entries
 
 Credential exposure, ALL tiers:
-- If settings.local.json is NOT gitignored, flag [!] Critical, tokens and personal paths may be committed
+- Project-scoped secrets are [!] only if committed, shared, or stored in non-gitignored project files
+- Do NOT flag user-scoped files like `~/.mcp.json` just because credentials are intentionally stored there
 
 MCP configuration, STANDARD+:
 - Check enabledMcpjsonServers count, >6 may impact performance
@@ -385,7 +388,7 @@ Paste all data inline. Do not pass file paths.
 
 ## Step 3: Synthesize and present
 
-Aggregate both agent outputs into one report:
+Aggregate the local analysis and any agent outputs into one report:
 
 ### [!] Critical -- fix now
 Rules violated, missing verification definitions, dangerous allowedTools, MCP overhead >12.5%, required-path `Access denied`, active cache-breakers, and Agent 1 security findings.
