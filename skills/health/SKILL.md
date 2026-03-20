@@ -14,7 +14,14 @@ The goal is to find violations and identify the misaligned layer, calibrated to 
 
 **Output language:** Use the user's recent messages; fall back to the CLAUDE.md `## Communication` rule. Default to English.
 
-**IMPORTANT:** Before the first tool call, output one short Step 1/3 progress line in the output language.
+**IMPORTANT:** Before the first tool call, output a progress block in the output language:
+
+```
+Step 1/3: Collecting configuration data
+  · CLAUDE.md (global + local) · rules/ · settings.local.json · hooks
+  · MCP servers · skills inventory + security scan
+  · conversation history (up to 3 recent sessions)
+```
 
 ## Step 0: Assess project tier
 
@@ -207,7 +214,18 @@ done
 
 ## Step 2: Analyze with tier-adjusted depth
 
-After Step 1 completes, output one short Step 2/3 progress line in the output language.
+After Step 1 completes, output a summary line with the detected tier and key metrics, then the step progress:
+
+```
+Tier: {SIMPLE/STANDARD/COMPLEX}; {file_count} files · {contributor_count} contributors · {ci: present/absent}
+Step 2/3: {SIMPLE: "Analyzing locally" | STANDARD/COMPLEX: "Launching parallel analysis agents"}
+```
+
+For STANDARD/COMPLEX, also list what each agent covers:
+```
+  · Agent 1: CLAUDE.md, rules, skills, MCP context + security scan
+  · Agent 2: hooks, allowedTools, behavior patterns, three-layer defense
+```
 
 SIMPLE: do not launch subagents. Analyze locally from Step 1, prioritize core config checks, and skip conversation-heavy cross-validation unless the evidence is already obvious.
 
@@ -251,7 +269,11 @@ Known failure modes that produce misleading output. Check these before flagging 
 
 ## Step 3: Synthesize and present
 
-Before writing the report, output one short Step 3/3 progress line in the output language.
+Before writing the report, output a progress line in the output language:
+
+```
+Step 3/3: Synthesizing report
+```
 
 Aggregate the local analysis and any agent outputs into one report:
 
