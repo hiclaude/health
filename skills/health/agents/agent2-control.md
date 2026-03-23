@@ -25,6 +25,7 @@ allowedTools hygiene, ALL tiers:
 
 Credential exposure, ALL tiers:
 - Project-scoped secrets are [!] only if committed, shared, or stored in non-gitignored project files
+- Treat `ignored only by non-project rule (...)` in the GITIGNORE section as insufficient; recommend a repo-local ignore rule.
 - Do NOT flag user-scoped files like `~/.mcp.json` just because credentials are intentionally stored there
 
 MCP configuration, STANDARD+:
