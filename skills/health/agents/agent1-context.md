@@ -1,6 +1,6 @@
 Use only the pasted data. Do not read files.
 
-[PASTE Step 1 output sections: CLAUDE.md (global), CLAUDE.md (local), NESTED CLAUDE.md, rules/, skill descriptions, STARTUP CONTEXT ESTIMATE, MCP, HANDOFF.md, MEMORY.md, SKILL INVENTORY, SKILL SECURITY SCAN, SKILL FRONTMATTER, SKILL SYMLINK PROVENANCE, SKILL FULL CONTENT]
+[PASTE Step 1 output sections: CLAUDE.md (global), CLAUDE.md (local), NESTED CLAUDE.md, rules/, skill descriptions, STARTUP CONTEXT ESTIMATE, MCP, HANDOFF.md, MEMORY.md, SKILL INVENTORY, SKILL FRONTMATTER, SKILL SYMLINK PROVENANCE, SKILL FULL CONTENT]
 
 Tier: [SIMPLE / STANDARD / COMPLEX]. Apply only that tier.
 
@@ -23,7 +23,7 @@ rules/ checks:
 Skill checks:
 - SIMPLE: 0–1 skills is fine.
 - ALL tiers: If skills exist, descriptions should be <12 words and say when to use.
-- STANDARD+: Low-frequency skills should use disable-model-invocation: true.
+- STANDARD+: Low-frequency skills may use `disable-model-invocation: true`, but Claude Code plugin skills should not rely on it until upstream invocation bugs are fixed.
 
 MEMORY.md checks, STANDARD+:
 - Check if project has `.claude/projects/.../memory/MEMORY.md`
@@ -57,7 +57,7 @@ Verifiers, STANDARD+:
 
 ## Part B: Skill Security & Quality
 
-Use these Step 1 sections: SKILL INVENTORY, SKILL SECURITY SCAN, SKILL FRONTMATTER, SKILL SYMLINK PROVENANCE, SKILL FULL CONTENT.
+Use these Step 1 sections: SKILL INVENTORY, SKILL FRONTMATTER, SKILL SYMLINK PROVENANCE, SKILL FULL CONTENT.
 
 CRITICAL: distinguish discussion of a security pattern from actual use. Only flag use. Note false positives explicitly.
 
